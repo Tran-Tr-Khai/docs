@@ -217,7 +217,105 @@ Cờ này = `true` nghĩa là hệ thống đang chạy ở chế độ **Net Ze
 
 ---
 
-## 7. Lưu Ý Chất Lượng Dữ Liệu
+## 7. Phân Tích Luồng Điện Thực Tế
+
+### 7.1. Vị Trí Của 4 Đồng Hồ Trong Hệ Thống
+
+Dựa vào pattern hành vi của từng đồng hồ, có thể xác định vai trò thực tế:
+
+| Đồng hồ | Serial | Vai trò thực tế | Hành vi đặc trưng |
+|---|---|---|---|
+| **Meter #1** | 3380619 | **Điểm đấu nối EVN của Nhà máy A (có Solar)** | Ban ngày chuyển từ dương → âm khi solar dư |
+| **Meter #2** | 3652343 | **Điểm đấu nối EVN của Nhà máy B / Xưởng khác** | Luôn dương, tăng vọt vào buổi sáng (ca sản xuất) |
+| **Meter #3** | 3652339 | **Điểm đo phụ / Tải nhỏ hoặc offline** | Gần như = 0 toàn bộ thời gian |
+| **Meter #4** | 3652344 | **Tải tiêu thụ chính toàn khu** | Ổn định 480–520 kW liên tục 24/7 |
+
+---
+
+### 7.2. Bảng Cân Bằng Công Suất Tại 3 Mốc Thời Gian
+
+| | **00:00** (ban đêm) | **07:30** (solar trung bình) | **08:15** (solar cao) |
+|---|---|---|---|
+| Solar AC tổng | 0 kW | 355 kW | **576 kW** |
+| Meter #1 (Nhà máy A ↔ EVN) | +217 kW *(mua)* | +206 kW *(mua)* | **−154 kW** *(xuất)* |
+| Meter #2 (Nhà máy B ↔ EVN) | +222 kW *(mua)* | +214 kW *(mua)* | **+477 kW** *(mua tăng)* |
+| Meter #3 | ≈ 0 | ≈ 0 | ≈ 0 |
+| Meter #4 (Tải chính) | +514 kW | +484 kW | +503 kW |
+
+> **Nhận xét quan trọng:** Đúng vào lúc Meter #1 chuyển sang âm (08:15), Meter #2 tăng vọt từ ~214 kW lên ~477 kW — đây là bằng chứng trực tiếp nhà máy B đang nhận điện dư từ nhà máy A.
+
+---
+
+### 7.3. Kiểm Chứng Bằng Phép Tính Cân Bằng
+
+**Tại 08:15 — Phương trình cân bằng công suất Nhà máy A:**
+
+$$\underbrace{576\text{ kW}}_{\text{Solar sản xuất}} = \underbrace{422\text{ kW}}_{\text{Tải nội bộ nhà máy A}} + \underbrace{154\text{ kW}}_{\text{Xuất qua Meter \#1}}$$
+
+**Điện xuất 154 kW đó đến Nhà máy B:**
+
+$$\underbrace{477\text{ kW}}_{\text{Meter \#2 tiêu thụ}} = \underbrace{154\text{ kW}}_{\text{Từ solar nhà máy A}} + \underbrace{323\text{ kW}}_{\text{Mua trực tiếp từ EVN}}$$
+
+**→ Cả 2 phương trình khớp chính xác ✓**
+
+---
+
+### 7.4. Sơ Đồ Luồng Điện Tại 08:15
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+              TRẠM BIẾN ÁP EVN (22kV / Trung thế)
+                 ▲                        │
+                 │ KHÔNG có               │ 323 kW từ EVN
+                 │ điện chạy              │ xuống Nhà máy B
+                 │ lên đây                ▼
+    ┌────────────┴────────┐    ┌───────────────────────┐
+    │    NHÀ MÁY A        │    │    NHÀ MÁY B / XƯỞNG  │
+    │  (Có hệ thống Solar)│    │    (Trong cùng KCN)   │
+    │                     │    │                       │
+    │  [Solar 576 kW]     │    │  Tiêu thụ: 477 kW     │
+    │        │            │    │   ┌──────────────┐    │
+    │  Dùng nội bộ 422 kW │    │   │323 kW từ EVN │    │
+    │        │            │    │   │154 kW từ A   │    │
+    │  Dư:  154 kW        │    │   └──────────────┘    │
+    │        │            │    │           ▲           │
+    │  [Meter #1: −154 kW]│────┼───────────┘           │
+    │                     │    │  ← Qua cáp hạ thế     │
+    └─────────────────────┘    │    nội khu KCN →      │
+                               └───────────────────────┘
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+### 7.5. Giải Thích Tại Sao "Không Phát Lên Lưới Quốc Gia"
+
+Nhà cung cấp nói **đúng về mặt kỹ thuật vật lý**. Đây là nguyên lý:
+
+> Dòng điện luôn chảy theo đường ngắn nhất đến tải gần nhất. Điện dư từ solar nhà máy A **không cần chạy ngược qua máy biến áp EVN** lên đường dây trung/cao thế quốc gia — nó được nhà máy B trong cùng KCN hút ngay trên đường dây phân phối hạ thế nội khu.
+
+| Thuật ngữ nhà cung cấp dùng | Ý nghĩa thực tế |
+|---|---|
+| *"Không phát lên lưới"* | Không phát ngược qua MBA lên đường dây 110kV/220kV quốc gia |
+| *"Điện dư chạy qua đường EVN"* | Chạy trên đường dây hạ thế/trung thế **nội bộ KCN** do EVN quản lý |
+| **Giá trị âm ở Meter #1** | Đây chính là lượng điện đang xuất ra đường dây nội khu đó |
+
+---
+
+### 7.6. Lưu Ý Về Hợp Đồng Điện
+
+Dù bản chất vật lý giống nhau, cách tính tiền điện phụ thuộc vào **cấu trúc hợp đồng với EVN**:
+
+| Trường hợp | Cách tính tiền |
+|---|---|
+| 4 đồng hồ trong **1 hợp đồng điện** | Bù trừ nội bộ toàn bộ — tiết kiệm tối đa, không qua EVN |
+| Mỗi nhà máy có **hợp đồng riêng** | EVN ghi nhận nhà máy A "bán" và nhà máy B "mua" — có thể phát sinh phí truyền tải |
+
+> **Khuyến nghị:** Xác nhận với EVN xem Meter #1 và Meter #2 có thuộc cùng 1 mã khách hàng/hợp đồng không, để tối ưu cách tính phí điện.
+
+---
+
+## 8. Lưu Ý Chất Lượng Dữ Liệu
 
 | Vấn đề | Ví dụ | Nguyên nhân có thể |
 |---|---|---|
@@ -227,7 +325,7 @@ Cờ này = `true` nghĩa là hệ thống đang chạy ở chế độ **Net Ze
 
 ---
 
-## 8. Gợi Ý Phân Tích Nâng Cao
+## 9. Gợi Ý Phân Tích Nâng Cao
 
 1. **Tính điện năng sản xuất (kWh):** Tích phân công suất AC theo thời gian: $E = \sum P_{AC} \times \frac{5}{60}$ (kWh)
 2. **Performance Ratio (PR):** $PR = \frac{E_{AC,thực\_tế}}{E_{DC,lý\_thuyết}}$ — so sánh với thiết kế để phát hiện suy giảm tấm pin
